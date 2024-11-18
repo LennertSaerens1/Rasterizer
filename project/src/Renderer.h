@@ -55,5 +55,7 @@ namespace dae
 
 		int m_Width{};
 		int m_Height{};
+
+		Texture* m_pTex;
 	};
 }

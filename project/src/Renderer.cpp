@@ -14,6 +14,8 @@ using namespace dae;
 Renderer::Renderer(SDL_Window* pWindow) :
 	m_pWindow(pWindow)
 {
+	m_pTex = Texture::LoadFromFile("resources/uv_grid_2.png");
+
 	//Initialize
 	SDL_GetWindowSize(pWindow, &m_Width, &m_Height);
 
@@ -441,7 +443,6 @@ void dae::Renderer::Renderer_W1_Part5()
 void dae::Renderer::Renderer_W2()
 {
 	
-	Texture* tex{ Texture::LoadFromFile("resources/uv_grid_2.png") };
 	/*std::vector<Mesh> meshes_world
 	{
 		Mesh{
@@ -598,7 +599,7 @@ void dae::Renderer::Renderer_W2()
 					Vector2 uv{ (meshes_world[mesh].vertices[index1].uv/ meshes_screen[mesh].vertices[index1].position.z *
 						weight0 + meshes_world[mesh].vertices[index2].uv / meshes_screen[mesh].vertices[index2].position.z *
 						weight1 + meshes_world[mesh].vertices[index3].uv / meshes_screen[mesh].vertices[index3].position.z * weight2) * ZInterpolated };
-					finalColor = tex->Sample(uv);
+					finalColor = m_pTex->Sample(uv);
 					
 
 					//float depth{ (meshes_world[mesh].vertices[index1].position.z * weight0 + meshes_world[mesh].vertices[index2].position.z * weight1 + meshes_world[mesh].vertices[index3].position.z * weight2)* ZInterpolated };
@@ -614,7 +615,6 @@ void dae::Renderer::Renderer_W2()
 						static_cast<uint8_t>(finalColor.r * 255),
 						static_cast<uint8_t>(finalColor.g * 255),
 						static_cast<uint8_t>(finalColor.b * 255));
-
 				}
 			}
 		}
