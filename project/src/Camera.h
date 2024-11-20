@@ -12,9 +12,10 @@ namespace dae
 	{
 		Camera() = default;
 
-		Camera(const Vector3& _origin, float _fovAngle):
+		Camera(const Vector3& _origin, float _fovAngle, float aspectRatio):
 			origin{_origin},
-			fovAngle{_fovAngle}
+			fovAngle{_fovAngle},
+			aspectRatio{aspectRatio}
 		{
 		}
 
@@ -22,6 +23,7 @@ namespace dae
 		Vector3 origin{};
 		float fovAngle{90.f};
 		float fov{ tanf((fovAngle * TO_RADIANS) / 2.f) };
+		float aspectRatio{  };
 
 		Vector3 forward{Vector3::UnitZ};
 		Vector3 up{Vector3::UnitY};
@@ -32,30 +34,33 @@ namespace dae
 
 		Matrix invViewMatrix{};
 		Matrix viewMatrix{};
+		Matrix projectionMatrix{};
 
-		void Initialize(float _fovAngle = 90.f, Vector3 _origin = {0.f,0.f,0.f})
+		void Initialize(float ratio, float _fovAngle = 90.f,  Vector3 _origin = {0.f,0.f,0.f})
 		{
 			fovAngle = _fovAngle;
 			fov = tanf((fovAngle * TO_RADIANS) / 2.f);
+			aspectRatio = ratio;
 
 			origin = _origin;
 		}
 
 		void CalculateViewMatrix()
 		{
-
 			right = (Vector3::Cross(Vector3::UnitY, forward).Normalized());
 			up = (Vector3::Cross(forward, right).Normalized());
-			Vector4 row1{ right.x,right.y,right.z,0 };
+
+			/*Vector4 row1{ right.x,right.y,right.z,0 };
 			Vector4 row2{ up.x,up.y,up.z,0 };
 			Vector4 row3{ forward.x,forward.y,forward.z,0 };
 			Vector4 row4{ origin.x,origin.y,origin.z,1 };
 			Matrix OBN{ row1,row2,row3,row4 };
-			invViewMatrix = (OBN);
-			viewMatrix = Matrix::Inverse(OBN);
+			invViewMatrix = OBN;
+			viewMatrix = Matrix::Inverse(OBN);*/
 			
+			invViewMatrix = Matrix::CreateLookAtLH(origin, forward, up);
 
-			//ViewMatrix => Matrix::CreateLookAtLH(...) [not implemented yet]
+			viewMatrix = Matrix::Inverse(invViewMatrix);
 			//DirectX Implementation => https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dxmatrixlookatlh
 		}
 
@@ -63,7 +68,7 @@ namespace dae
 		{
 			//TODO W3
 
-			//ProjectionMatrix => Matrix::CreatePerspectiveFovLH(...) [not implemented yet]
+			projectionMatrix = Matrix::CreatePerspectiveFovLH(fov, aspectRatio, 1.f, 100.f);
 			//DirectX Implementation => https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dxmatrixperspectivefovlh
 		}
 

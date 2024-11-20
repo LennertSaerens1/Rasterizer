@@ -9,8 +9,8 @@ namespace dae
 		Vector3 position{};
 		ColorRGB color{colors::White};
 		Vector2 uv{}; //W2
-		//Vector3 normal{}; //W4
-		//Vector3 tangent{}; //W4
+		Vector3 normal{}; //W4
+		Vector3 tangent{}; //W4
 		//Vector3 viewDirection{}; //W4
 	};
 
@@ -19,8 +19,8 @@ namespace dae
 		Vector4 position{};
 		ColorRGB color{ colors::White };
 		Vector2 uv{};
-		//Vector3 normal{};
-		//Vector3 tangent{};
+		Vector3 normal{};
+		Vector3 tangent{};
 		//Vector3 viewDirection{};
 	};
 
@@ -38,5 +38,34 @@ namespace dae
 
 		std::vector<Vertex_Out> vertices_out{};
 		Matrix worldMatrix{};
+
+		Matrix rotationTransform{};
+		Matrix translationTransform{};
+		Matrix scaleTransform{};
+
+		void Translate(const Vector3& translation)
+		{
+			translationTransform = Matrix::CreateTranslation(translation);
+		}
+
+		void RotateY(float yaw)
+		{
+			rotationTransform = Matrix::CreateRotationY(yaw);
+		}
+
+		void Scale(const Vector3& scale)
+		{
+			scaleTransform = Matrix::CreateScale(scale);
+		}
+
+		void UpdateTransforms()
+		{
+			worldMatrix = rotationTransform * translationTransform * scaleTransform;
+		}
+
+		Matrix GetWorldMat()
+		{
+			return worldMatrix;
+		}
 	};
 }

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "Camera.h"
+#include "DataTypes.h"
 
 struct SDL_Window;
 struct SDL_Surface;
@@ -32,15 +33,21 @@ namespace dae
 
 		bool SaveBufferToImage() const;
 
-		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const;
+		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex_Out>& vertices_out, Matrix worldMatrix) const;
 
-		void Renderer_W1_Part1();
+		/*void Renderer_W1_Part1();
 		void Renderer_W1_Part2();
 		void Renderer_W1_Part3();
 		void Renderer_W1_Part4();
 		void Renderer_W1_Part5();
 
-		void Renderer_W2();
+		void Renderer_W2();*/
+
+		void Renderer_W3();
+
+		void ChangeRenderMode();
+
+		float Remap(float value, float outMin, float outMax);
 
 	private:
 		SDL_Window* m_pWindow{};
@@ -57,5 +64,9 @@ namespace dae
 		int m_Height{};
 
 		Texture* m_pTex;
+
+		bool UsingFinalColor{true};
+
+		bool wasF4Pressed{};
 	};
 }

@@ -144,16 +144,29 @@ namespace dae {
 
 	Matrix Matrix::CreateLookAtLH(const Vector3& origin, const Vector3& forward, const Vector3& up)
 	{
-		//TODO W1
+		Vector3 right = (Vector3::Cross(Vector3::UnitY, forward).Normalized());
 
-		return {};
+		Vector4 row1{ right.x,right.y,right.z,0 };
+		Vector4 row2{ up.x,up.y,up.z,0 };
+		Vector4 row3{ forward.x,forward.y,forward.z,0 };
+		Vector4 row4{ origin.x,origin.y,origin.z,1 };
+		Matrix OBN{ row1,row2,row3,row4 };
+		Matrix invViewMatrix = OBN;
+
+		return invViewMatrix;
 	}
 
 	Matrix Matrix::CreatePerspectiveFovLH(float fov, float aspect, float zn, float zf)
 	{
-		//TODO W3
 
-		return {};
+		Vector4 row1{ 1/(aspect* fov), 0,0,0};
+		Vector4 row2{ 0,1/fov,0,0 };
+		Vector4 row3{ 0,0,zf/(zf-zn),1};
+		Vector4 row4{ 0,0,-(zf*zn)/(zf-zn),0};
+		Matrix FovLH{ row1,row2,row3,row4 };
+
+
+		return FovLH;
 	}
 
 	Vector3 Matrix::GetAxisX() const
