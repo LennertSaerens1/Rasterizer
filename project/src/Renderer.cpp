@@ -25,7 +25,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	m_pBackBuffer = SDL_CreateRGBSurface(0, m_Width, m_Height, 32, 0, 0, 0, 0);
 	m_pBackBufferPixels = (uint32_t*)m_pBackBuffer->pixels;
 
-	//m_pDepthBufferPixels = new float[m_Width * m_Height];
+	m_pDepthBufferPixels = new float[m_Width * m_Height];
 
 	//Initialize Camera
 	m_Camera.Initialize(static_cast<float>(m_Width) / m_Height,60.f, { 0.f,0.f,-10.f });
@@ -33,7 +33,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 
 Renderer::~Renderer()
 {
-	//delete[] m_pDepthBufferPixels;
+	delete[] m_pDepthBufferPixels;
 }
 
 void Renderer::Update(Timer* pTimer)
@@ -664,8 +664,8 @@ void dae::Renderer::Renderer_W3()
 		VertexTransformationFunction(meshes_world[i].vertices, meshes_world[i].vertices_out , meshes_world[i].GetWorldMat());
 	}
 
-	std::vector<float> depthBuffer{};
-	depthBuffer.reserve(m_Width * m_Height);
+	/*std::vector<float> depthBuffer{};
+	depthBuffer.reserve(m_Width * m_Height);*/
 
 	SDL_FillRect(m_pBackBuffer, 0, SDL_MapRGB(m_pBackBuffer->format, static_cast <uint8_t>(100), static_cast <uint8_t>(100), static_cast<uint8_t>(100)));
 
@@ -673,7 +673,7 @@ void dae::Renderer::Renderer_W3()
 	{
 		for (int py{}; py < m_Height; ++py)
 		{
-			depthBuffer.emplace_back(FLT_MAX);
+			m_pDepthBufferPixels[px + (py * m_Width)] = FLT_MAX;
 		}
 	}
 	for (int mesh{}; mesh < meshes_world.size(); ++mesh)
@@ -768,12 +768,13 @@ void dae::Renderer::Renderer_W3()
 					{
 						continue;
 					}
-					if (depthBuffer[px + (py * m_Width)] < ZInterpolated)
+					if (m_pDepthBufferPixels[px + (py * m_Width)] < ZInterpolated)
 					{
+						std::cout << "Wrong depthBuffer" << px + (py * m_Width) << "\n";
 						continue;
 					}
 
-					depthBuffer[px + (py * m_Width)] = ZInterpolated;
+					m_pDepthBufferPixels[px + (py * m_Width)] = ZInterpolated;
 
 					ColorRGB finalColor{ };
 					if (Vector2::Cross(p0, e0) > 0) continue;
@@ -790,7 +791,7 @@ void dae::Renderer::Renderer_W3()
 					}
 					else
 					{
-						float depthValue = depthBuffer[px + (py * m_Width)];
+						float depthValue = m_pDepthBufferPixels[px + (py * m_Width)];
 						depthValue = Remap(depthValue, 0.985f, 1.f);
 						finalColor = ColorRGB(depthValue, depthValue, depthValue);
 					}
