@@ -35,7 +35,9 @@ namespace dae
 
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex_Out>& vertices_out, Matrix worldMatrix) const;
 
-		void PixelShading(const Vertex_Out& v, ColorRGB& finalColor, float depthValue, Texture* tex);
+		ColorRGB PixelShading(const Vertex_Out& v, float depthValue, Texture* tex);
+
+		//void PixelShading(const Vertex_Out& v, ColorRGB& finalColor, float depthValue, Texture* tex);
 
 		/*void Renderer_W1_Part1();
 		void Renderer_W1_Part2();
@@ -54,11 +56,11 @@ namespace dae
 
 		enum class RenderMode
 		{
-			FinalColor,
-			Depth,
-			BRDF,
-			Phong,
-			observedArea
+
+			observedArea,
+			Diffuse,
+			Specular,
+			Combined
 		};
 
 	private:
@@ -80,10 +82,16 @@ namespace dae
 		std::vector<Texture*> m_pGlossMap;
 		std::vector<Texture*> m_pSpecularMap;
 
+		bool depthMode{};
+		bool rotationOn{true};
+		bool normalMapOn{true};
 
-		RenderMode m_RenderMode{ RenderMode::FinalColor };
+		RenderMode m_RenderMode{ RenderMode::Combined };
 
 		bool wasF4Pressed{};
+		bool wasF5Pressed{};
+		bool wasF6Pressed{};
+		bool wasF7Pressed{};
 
 		std::vector<Mesh> meshes_world;
 	};

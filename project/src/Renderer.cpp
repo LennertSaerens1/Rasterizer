@@ -92,6 +92,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	for (int idx{}; idx < meshes_world[0].vertices.size(); ++idx)
 	{
 		meshes_world[0].vertices_out.emplace_back();
+		//if (isnan(meshes_world[0].vertices[idx].tangent.x)) __debugbreak();
 	}
 
 }
@@ -107,7 +108,7 @@ Renderer::~Renderer()
 
 void Renderer::Update(Timer* pTimer)
 {
-	meshes_world[0].RotateY(PI / 8 * pTimer->GetElapsed());
+	if (rotationOn) meshes_world[0].RotateY(PI / 8 * pTimer->GetElapsed());
 	meshes_world[0].UpdateTransforms();
 	
 	/*meshes_world[1].RotateY( -PI / 8 * pTimer->GetElapsed());
@@ -172,9 +173,7 @@ void dae::Renderer::VertexTransformationFunction(const std::vector<Vertex>& vert
 		vertices_out[idx].position.y = (1 - vertices_out[idx].position.y) / 2 * m_Height;
 
 		//Vieuw direction
-		Matrix tempVieuw{};
-		tempVieuw[0] = { vertices_in[idx].position,1 };
-		Vector3 worldPosition{ (tempVieuw * worldMatrix)[0] };
+		Vector3 worldPosition{ worldMatrix.TransformPoint(vertices_in[idx].position)};
 		vertices_out[idx].viewDirection = (worldPosition - m_Camera.origin).Normalized();
 
 		//transform normals
@@ -190,19 +189,24 @@ void dae::Renderer::VertexTransformationFunction(const std::vector<Vertex>& vert
 	
 }
 
-void dae::Renderer::PixelShading(const Vertex_Out& v, ColorRGB& finalColor, float depthValue, Texture* tex)
+ColorRGB dae::Renderer::PixelShading(const Vertex_Out& v, float depthValue, Texture* tex)
 {
+	ColorRGB finalColor{};
 
 	Vector3 lightDirection{ 0.577f,-.577f,0.577f };
 	lightDirection.Normalize();
+	
+	Vector3 normal = v.normal.Normalized();
+	Vector3 tangent  = v.tangent.Normalized();
 
-	Vector3 binormal = Vector3::Cross(v.normal, v.tangent);
+	Vector3 binormal = Vector3::Cross(normal, tangent);
+	binormal.Normalize();
 
-	Matrix tangentSpaceAxis = Matrix(v.tangent, binormal, v.normal, Vector3{ 0,0,0 });
+	Matrix tangentSpaceAxis = Matrix(tangent, binormal, normal, Vector3{ 0,0,0 });
 
 	ColorRGB normalValue= m_pNormalMap[0]->Sample(v.uv);
 
-	Vector3 sampledNormal{normalValue.r*255, normalValue.g*255,normalValue.b*255};
+	Vector3 sampledNormal{normalValue.r * 255, normalValue.g * 255,normalValue.b * 255};
 
 	sampledNormal /= 255.f;
 	sampledNormal = 2.f * sampledNormal - Vector3(1.f,1.f,1.f);
@@ -211,66 +215,58 @@ void dae::Renderer::PixelShading(const Vertex_Out& v, ColorRGB& finalColor, floa
 
 	sampledNormal = tangentSpaceAxis.TransformVector(sampledNormal);
 	
+	float observedArea{};
+	if (normalMapOn) observedArea = Vector3::Dot(sampledNormal, -lightDirection) ;
+	else observedArea= Vector3::Dot(v.normal, -lightDirection);
 
-	float observedArea{ Vector3::Dot(sampledNormal, -lightDirection)};
+	float Shininess{25.f};
+	//OA
+	ColorRGB cd = tex->Sample(v.uv);
+	float kd{ 7.f };
+
+	//Phong
+	Vector3 view{ v.viewDirection };
+	ColorRGB specular = m_pSpecularMap[0]->Sample(v.uv);
+	float ks = (specular.r + specular.g + specular.b) / 3;
+	ColorRGB gloss = m_pGlossMap[0]->Sample(v.uv);
+	float exp = gloss.r * Shininess;
+
+	const float cosAngle{ Vector3::Dot(Vector3::Reflect(-lightDirection,sampledNormal) , view) };
+	const float phong{ ks * powf(abs(cosAngle),exp) };
+
+
+	//Lambert
+	const ColorRGB Lambert = cd * kd / PI;
+
 
 	if (observedArea > 0)
 	{
 		if (m_RenderMode == RenderMode::observedArea)
 		{
-			finalColor += ColorRGB(observedArea, observedArea, observedArea);
+			return ColorRGB(observedArea, observedArea, observedArea);
 		}		
-		else if (m_RenderMode == RenderMode::BRDF)
+		else if (m_RenderMode == RenderMode::Combined)
 		{
-			//OA
-			ColorRGB cd = tex->Sample(v.uv);
-			float kd{ 7.f };
+			
+			return Lambert * observedArea + ColorRGB(phong, phong, phong);
 
-			//Phong
-			Vector3 view{ v.viewDirection };
-			ColorRGB specular = m_pSpecularMap[0]->Sample(v.uv);
-			float ks = (specular.r + specular.g + specular.b) / 3;
-			ColorRGB gloss = m_pGlossMap[0]->Sample(v.uv);
-			float exp = gloss.r;
-
-
-			const float cosAngle{ Vector3::Dot(Vector3::Reflect(sampledNormal,-lightDirection) , view) };
-			const float phong{ ks * powf(abs(cosAngle),exp) };
-
-			const ColorRGB Lambert = cd * kd / PI;
-			finalColor += Lambert * observedArea + ColorRGB(phong,phong,phong);
 		}
-		else if (m_RenderMode == RenderMode::Phong)
+		else if (m_RenderMode == RenderMode::Specular)
 		{
-			Vector3 view{ v.viewDirection };
-			ColorRGB specular = m_pSpecularMap[0]->Sample(v.uv);
-			float ks = (specular.r + specular.g + specular.b) / 3;
-			ColorRGB gloss = m_pGlossMap[0]->Sample(v.uv);
-			float exp = gloss.r;
 
-			const float cosAngle{ Vector3::Dot(Vector3::Reflect(sampledNormal,-lightDirection) , view) };
-			const float phong{ ks * powf(abs(cosAngle),exp) };
-
-			finalColor += ColorRGB(phong,phong,phong);
-
-			/*const float cosAngle{ Vector3::Dot(Vector3::Reflect(sampledNormal,-lightDirection) , -view) };
-			const float phong{ ks * powf(abs(cosAngle),exp) };
-			finalColor = ColorRGB(phong, phong, phong);*/
+			return (ColorRGB(phong,phong,phong));
+		}
+		else if (m_RenderMode == RenderMode::Diffuse)
+		{
+			return Lambert;
 		}
 	}
+
 	
-	if (m_RenderMode == RenderMode::FinalColor)
-	{
-		//else finalColor = { meshes_world[mesh].vertices[index1].color * weight0 + meshes_world[mesh].vertices[index2].color * weight1 + meshes_world[mesh].vertices[index3].color * weight2 };
-
-		finalColor = tex->Sample(v.uv);
-	}
-	else if (m_RenderMode == RenderMode::Depth)
-	{
-		depthValue = Remap(depthValue, 0.955f, 1.f);
-		finalColor = ColorRGB(depthValue, depthValue, depthValue);
-	}
+	return finalColor;
 }
+
+
 
 void dae::Renderer::Renderer_W3()
 {
@@ -428,7 +424,12 @@ void dae::Renderer::Renderer_W3()
 
 					float depthValue = m_pDepthBufferPixels[px + (py * m_Width)];
 
-					PixelShading(interpolatedVertex, finalColor, depthValue, m_pTex[mesh]);
+					if (depthMode)
+					{
+						depthValue = Remap(depthValue, 0.955f, 1.f);
+						finalColor = ColorRGB(depthValue, depthValue, depthValue);
+					}
+					else finalColor = PixelShading(interpolatedVertex, depthValue, m_pTex[mesh]);
 					//else if (m_RenderMode == RenderMode::FinalColor)
 					//{
 					//	//else finalColor = { meshes_world[mesh].vertices[index1].color * weight0 + meshes_world[mesh].vertices[index2].color * weight1 + meshes_world[mesh].vertices[index3].color * weight2 };
@@ -473,18 +474,17 @@ void dae::Renderer::ChangeRenderMode()
 
 	if (wasF4Pressed && pKeyboardState[SDL_SCANCODE_F4] == false)
 	{
-		if (m_RenderMode == RenderMode::observedArea)
+		if (m_RenderMode == RenderMode::Combined)
 		{
-			m_RenderMode = RenderMode::FinalColor;
-			std::cout << "Render mode set to FinalColor\n";
+			m_RenderMode = RenderMode::observedArea;
+			std::cout << "Render mode set to observedArea\n";
 		}
 		else
 			m_RenderMode = static_cast<RenderMode>(static_cast<int>(m_RenderMode) + 1);
 
-		if (m_RenderMode == RenderMode::Depth) 	std::cout << "Render mode set to Depth\n";
-		if (m_RenderMode == RenderMode::BRDF) 	std::cout << "Render mode set to BRDF\n";
-		if (m_RenderMode == RenderMode::observedArea) 	std::cout << "Render mode set to ObservedArea\n";
-		if (m_RenderMode == RenderMode::Phong) 	std::cout << "Render mode set to Phong\n";
+		if (m_RenderMode == RenderMode::Diffuse) 	std::cout << "Render mode set to Diffuse\n";
+		if (m_RenderMode == RenderMode::Combined) 	std::cout << "Render mode set to Combined\n";
+		if (m_RenderMode == RenderMode::Specular) 	std::cout << "Render mode set to Specular\n";
 
 	}
 	if (pKeyboardState[SDL_SCANCODE_F4])
@@ -494,6 +494,54 @@ void dae::Renderer::ChangeRenderMode()
 	if (!pKeyboardState[SDL_SCANCODE_F4])
 	{
 		wasF4Pressed = false;
+	}
+	
+	if (wasF5Pressed && pKeyboardState[SDL_SCANCODE_F5] == false)
+	{	
+		depthMode = !depthMode;
+		if (depthMode) 			std::cout << "Depth mode on\n";
+		else					std::cout << "Depth mdoe off\n";
+	}
+	if (pKeyboardState[SDL_SCANCODE_F5])
+	{
+		wasF5Pressed = true;
+	}
+	if (!pKeyboardState[SDL_SCANCODE_F5])
+	{
+		wasF5Pressed = false;
+	}
+	
+	if (wasF6Pressed && pKeyboardState[SDL_SCANCODE_F6] == false)
+	{	
+		rotationOn = !rotationOn;
+		if (rotationOn) 		std::cout << "Rotation on\n";
+		else					std::cout << "Rotation off\n";
+
+	}
+	if (pKeyboardState[SDL_SCANCODE_F6])
+	{
+		wasF6Pressed = true;
+	}
+	if (!pKeyboardState[SDL_SCANCODE_F6])
+	{
+		wasF6Pressed = false;
+	}
+	
+	if (wasF7Pressed && pKeyboardState[SDL_SCANCODE_F7] == false)
+	{	
+		normalMapOn = !normalMapOn;
+		if (normalMapOn) 		std::cout << "Normal map on\n";
+		else					std::cout << "Normal map off\n";
+
+
+	}
+	if (pKeyboardState[SDL_SCANCODE_F7])
+	{
+		wasF7Pressed = true;
+	}
+	if (!pKeyboardState[SDL_SCANCODE_F7])
+	{
+		wasF7Pressed = false;
 	}
 
 }

@@ -154,6 +154,8 @@ namespace dae
 				vertices[index0].tangent += tangent;
 				vertices[index1].tangent += tangent;
 				vertices[index2].tangent += tangent;
+
+				//if (isnan(tangent.x)) __debugbreak();
 			}
 
 			//Fix the tangents per vertex now because we accumulated
