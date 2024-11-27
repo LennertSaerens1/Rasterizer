@@ -35,6 +35,8 @@ namespace dae
 
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex_Out>& vertices_out, Matrix worldMatrix) const;
 
+		void PixelShading(const Vertex_Out& v, ColorRGB& finalColor, float depthValue, Texture* tex);
+
 		/*void Renderer_W1_Part1();
 		void Renderer_W1_Part2();
 		void Renderer_W1_Part3();
@@ -44,10 +46,20 @@ namespace dae
 		void Renderer_W2();*/
 
 		void Renderer_W3();
+		/*void Renderer_TucTuc();*/
 
 		void ChangeRenderMode();
 
 		float Remap(float value, float outMin, float outMax);
+
+		enum class RenderMode
+		{
+			FinalColor,
+			Depth,
+			BRDF,
+			Phong,
+			observedArea
+		};
 
 	private:
 		SDL_Window* m_pWindow{};
@@ -63,10 +75,17 @@ namespace dae
 		int m_Width{};
 		int m_Height{};
 
-		Texture* m_pTex;
+		std::vector<Texture*> m_pTex;
+		std::vector<Texture*> m_pNormalMap;
+		std::vector<Texture*> m_pGlossMap;
+		std::vector<Texture*> m_pSpecularMap;
 
-		bool UsingFinalColor{true};
+
+		RenderMode m_RenderMode{ RenderMode::FinalColor };
 
 		bool wasF4Pressed{};
+
+		std::vector<Mesh> meshes_world;
 	};
+		
 }

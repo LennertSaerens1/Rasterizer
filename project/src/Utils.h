@@ -4,7 +4,7 @@
 #include "Maths.h"
 #include "DataTypes.h"
 
-#define DISABLE_OBJ
+//#define DISABLE_OBJ
 
 namespace dae
 {
@@ -67,6 +67,8 @@ namespace dae
 					file >> x >> y >> z;
 
 					normals.emplace_back(x, y, z);
+					//if (!flipAxisAndWinding)
+					//	normals.back() = -normals.back();
 				}
 				else if (sCommand == "f")
 				{

@@ -7,6 +7,7 @@
 #include "Maths.h"
 #include "Texture.h"
 #include "Utils.h"
+#include "BRDFs.h"
 #include <iostream>
 #include<algorithm>
 
@@ -15,8 +16,15 @@ using namespace dae;
 Renderer::Renderer(SDL_Window* pWindow) :
 	m_pWindow(pWindow)
 {
-	m_pTex = Texture::LoadFromFile("resources/uv_grid_2.png");
+	//m_pTex.push_back( Texture::LoadFromFile("Resources/tuktuk.png"));
+	m_pTex.push_back(Texture::LoadFromFile("Resources/vehicle_diffuse.png"));
 
+	m_pNormalMap.push_back(Texture::LoadFromFile("Resources/vehicle_normal.png"));
+
+	m_pGlossMap.push_back(Texture::LoadFromFile("Resources/vehicle_gloss.png"));
+
+	m_pSpecularMap.push_back(Texture::LoadFromFile("Resources/vehicle_specular.png"));
+	
 	//Initialize
 	SDL_GetWindowSize(pWindow, &m_Width, &m_Height);
 
@@ -27,17 +35,83 @@ Renderer::Renderer(SDL_Window* pWindow) :
 
 	m_pDepthBufferPixels = new float[m_Width * m_Height];
 
+
 	//Initialize Camera
-	m_Camera.Initialize(static_cast<float>(m_Width) / m_Height,60.f, { 0.f,0.f,-10.f });
+	m_Camera.Initialize(static_cast<float>(m_Width) / m_Height,60.f, { 0.f,0.f,-40.f });
+
+	//meshes_world = //W3
+	//{
+	//	Mesh{
+	//		{
+	//			Vertex{{ -3,3,-2 },{1.f,1.f,1.f},{0,0}},
+	//			Vertex{{ 0,3,-2},{1.f,1.f,1.f},{0.5f,0}},
+	//			Vertex{{ 3,3,-2},{1.f,1.f,1.f},{1,0}},
+	//			Vertex{{ -3,0,-2},{1.f,1.f,1.f},{0,0.5}},
+	//			Vertex{{0,0,-2 },{1.f,1.f,1.f},{0.5f,0.5f}},
+	//			Vertex{{ 3,0,-2},{1.f,1.f,1.f},{1,0.5f}},
+	//			Vertex{{-3,-3,-2 },{1.f,1.f,1.f},{0,1}},
+	//			Vertex{{0,-3,-2 },{1.f,1.f,1.f},{0.5f,1}},
+	//			Vertex{{3,-3,-2 },{1.f,1.f,1.f},{1,1}}
+	//		},
+	//		{
+	//			3, 0, 4, 1, 5, 2,
+	//			2, 6,
+	//			6, 3, 7, 4, 8, 5
+	//		},
+	//	PrimitiveTopology::TriangleStrip
+	//	}
+	//};
+
+	
+	/*meshes_world.push_back(Mesh{});
+	Utils::ParseOBJ("Resources/tuktuk.obj", meshes_world[0].vertices, meshes_world[0].indices);
+	meshes_world[0].primitiveTopology = PrimitiveTopology::TriangleList;
+	
+	for (int idx{}; idx < meshes_world[0].vertices.size(); ++idx)
+	{
+		meshes_world[0].vertices_out.emplace_back();
+	}
+	
+	meshes_world.push_back(Mesh{});
+	Utils::ParseOBJ("Resources/vehicle.obj", meshes_world[1].vertices, meshes_world[1].indices, false);
+	meshes_world[1].primitiveTopology = PrimitiveTopology::TriangleList;
+	
+	for (int idx{}; idx < meshes_world[1].vertices.size(); ++idx)
+	{
+		meshes_world[1].vertices_out.emplace_back();
+	}
+
+	meshes_world[0].Translate(Vector3(-15, -6, 0));
+	meshes_world[1].Translate(Vector3(15, 0, 0));
+	meshes_world[1].Scale(Vector3(0.7f, 0.7f, 0.7f));*/
+
+	meshes_world.push_back(Mesh{});
+	Utils::ParseOBJ("Resources/vehicle.obj", meshes_world[0].vertices, meshes_world[0].indices);
+	meshes_world[0].primitiveTopology = PrimitiveTopology::TriangleList;
+
+	for (int idx{}; idx < meshes_world[0].vertices.size(); ++idx)
+	{
+		meshes_world[0].vertices_out.emplace_back();
+	}
+
 }
 
 Renderer::~Renderer()
 {
 	delete[] m_pDepthBufferPixels;
+	for (int idx{}; idx < m_pTex.size(); ++idx)
+	{
+		delete m_pTex[idx];
+	}
 }
 
 void Renderer::Update(Timer* pTimer)
 {
+	meshes_world[0].RotateY(PI / 8 * pTimer->GetElapsed());
+	meshes_world[0].UpdateTransforms();
+	
+	/*meshes_world[1].RotateY( -PI / 8 * pTimer->GetElapsed());
+	meshes_world[1].UpdateTransforms();*/
 	m_Camera.Update(pTimer);
 	ChangeRenderMode();
 }
@@ -80,12 +154,12 @@ void dae::Renderer::VertexTransformationFunction(const std::vector<Vertex>& vert
 	for (int idx{}; idx < vertices_in.size(); ++idx)
 	{
 
-		vertices_out.emplace_back();
 		//World to NDC
-		Matrix temp{};
-		temp[0] = { vertices_in[idx].position,1 };
+		Matrix tempPos{};
+		tempPos[0] = { vertices_in[idx].position,1 };
 
-		vertices_out[idx].position = { (temp * worldVieuwProjectionMatrix)[0]};
+
+		vertices_out[idx].position = { (tempPos * worldVieuwProjectionMatrix)[0]};
 
 
 		//perspective Divide
@@ -96,8 +170,357 @@ void dae::Renderer::VertexTransformationFunction(const std::vector<Vertex>& vert
 		//NDC To camera
 		vertices_out[idx].position.x = (vertices_out[idx].position.x + 1) / 2 * m_Width;
 		vertices_out[idx].position.y = (1 - vertices_out[idx].position.y) / 2 * m_Height;
+
+		//Vieuw direction
+		Matrix tempVieuw{};
+		tempVieuw[0] = { vertices_in[idx].position,1 };
+		Vector3 worldPosition{ (tempVieuw * worldMatrix)[0] };
+		vertices_out[idx].viewDirection = (worldPosition - m_Camera.origin).Normalized();
+
+		//transform normals
+		vertices_out[idx].normal = worldMatrix.TransformVector(vertices_in[idx].normal);
+		vertices_out[idx].normal.Normalize();
+		
+		//transform tangents
+		vertices_out[idx].tangent = worldMatrix.TransformVector(vertices_in[idx].tangent);
+		vertices_out[idx].tangent.Normalize();
+
+
+	}
+	
+}
+
+void dae::Renderer::PixelShading(const Vertex_Out& v, ColorRGB& finalColor, float depthValue, Texture* tex)
+{
+
+	Vector3 lightDirection{ 0.577f,-.577f,0.577f };
+	lightDirection.Normalize();
+
+	Vector3 binormal = Vector3::Cross(v.normal, v.tangent);
+
+	Matrix tangentSpaceAxis = Matrix(v.tangent, binormal, v.normal, Vector3{ 0,0,0 });
+
+	ColorRGB normalValue= m_pNormalMap[0]->Sample(v.uv);
+
+	Vector3 sampledNormal{normalValue.r*255, normalValue.g*255,normalValue.b*255};
+
+	sampledNormal /= 255.f;
+	sampledNormal = 2.f * sampledNormal - Vector3(1.f,1.f,1.f);
+
+	sampledNormal.Normalize();
+
+	sampledNormal = tangentSpaceAxis.TransformVector(sampledNormal);
+	
+
+	float observedArea{ Vector3::Dot(sampledNormal, -lightDirection)};
+
+	if (observedArea > 0)
+	{
+		if (m_RenderMode == RenderMode::observedArea)
+		{
+			finalColor += ColorRGB(observedArea, observedArea, observedArea);
+		}		
+		else if (m_RenderMode == RenderMode::BRDF)
+		{
+			//OA
+			ColorRGB cd = tex->Sample(v.uv);
+			float kd{ 7.f };
+
+			//Phong
+			Vector3 view{ v.viewDirection };
+			ColorRGB specular = m_pSpecularMap[0]->Sample(v.uv);
+			float ks = (specular.r + specular.g + specular.b) / 3;
+			ColorRGB gloss = m_pGlossMap[0]->Sample(v.uv);
+			float exp = gloss.r;
+
+
+			const float cosAngle{ Vector3::Dot(Vector3::Reflect(sampledNormal,-lightDirection) , view) };
+			const float phong{ ks * powf(abs(cosAngle),exp) };
+
+			const ColorRGB Lambert = cd * kd / PI;
+			finalColor += Lambert * observedArea + ColorRGB(phong,phong,phong);
+		}
+		else if (m_RenderMode == RenderMode::Phong)
+		{
+			Vector3 view{ v.viewDirection };
+			ColorRGB specular = m_pSpecularMap[0]->Sample(v.uv);
+			float ks = (specular.r + specular.g + specular.b) / 3;
+			ColorRGB gloss = m_pGlossMap[0]->Sample(v.uv);
+			float exp = gloss.r;
+
+			const float cosAngle{ Vector3::Dot(Vector3::Reflect(sampledNormal,-lightDirection) , view) };
+			const float phong{ ks * powf(abs(cosAngle),exp) };
+
+			finalColor += ColorRGB(phong,phong,phong);
+
+			/*const float cosAngle{ Vector3::Dot(Vector3::Reflect(sampledNormal,-lightDirection) , -view) };
+			const float phong{ ks * powf(abs(cosAngle),exp) };
+			finalColor = ColorRGB(phong, phong, phong);*/
+		}
+	}
+	
+	if (m_RenderMode == RenderMode::FinalColor)
+	{
+		//else finalColor = { meshes_world[mesh].vertices[index1].color * weight0 + meshes_world[mesh].vertices[index2].color * weight1 + meshes_world[mesh].vertices[index3].color * weight2 };
+
+		finalColor = tex->Sample(v.uv);
+	}
+	else if (m_RenderMode == RenderMode::Depth)
+	{
+		depthValue = Remap(depthValue, 0.955f, 1.f);
+		finalColor = ColorRGB(depthValue, depthValue, depthValue);
 	}
 }
+
+void dae::Renderer::Renderer_W3()
+{
+	
+
+	//std::vector<Mesh> meshes_screen{ meshes_world };
+	for (int i{}; i < meshes_world.size(); ++i)
+	{
+		VertexTransformationFunction(meshes_world[i].vertices, meshes_world[i].vertices_out , meshes_world[i].GetWorldMat());
+	}
+	/*std::vector<float> depthBuffer{};
+	depthBuffer.reserve(m_Width * m_Height);*/
+
+	SDL_FillRect(m_pBackBuffer, 0, SDL_MapRGB(m_pBackBuffer->format, static_cast <uint8_t>(100), static_cast <uint8_t>(100), static_cast<uint8_t>(100)));
+
+
+
+	for (int px{}; px < m_Width; ++px)
+	{
+		for (int py{}; py < m_Height; ++py)
+		{
+			m_pDepthBufferPixels[px + (py * m_Width)] = FLT_MAX;
+		}
+	}
+	
+	for (int mesh{}; mesh < meshes_world.size(); ++mesh)
+	{
+		int step{ 3 };
+		for (int idx{}; idx < meshes_world[mesh].indices.size(); idx += step)
+		{
+			uint32_t index1 = meshes_world[mesh].indices[idx];
+			uint32_t index2 = meshes_world[mesh].indices[idx + 1];
+			uint32_t index3 = meshes_world[mesh].indices[idx + 2];
+
+			
+			/*meshes_world[mesh].vertices_out[index1].viewDirection = ((meshes_world[mesh].vertices[index1].position*) - m_Camera.origin);
+			meshes_world[mesh].vertices_out[index2].viewDirection = ((meshes_world[mesh].vertices[index2].position*) - m_Camera.origin);
+			meshes_world[mesh].vertices_out[index3].viewDirection = ((meshes_world[mesh].vertices[index3].position*) - m_Camera.origin);*/
+			
+
+
+			if (meshes_world[mesh].primitiveTopology == PrimitiveTopology::TriangleStrip)
+			{
+				step = 1;
+				if (idx == (meshes_world[mesh].indices.size() - 3)) step = 3;
+				if (idx % 2)
+				{
+					std::swap(index2, index3);
+				}
+			}
+
+			float maxX{ std::max(meshes_world[mesh].vertices_out[index1].position.x,meshes_world[mesh].vertices_out[index2].position.x) };
+			maxX = { std::max(maxX,meshes_world[mesh].vertices_out[index3].position.x) };
+			/*if (maxX < 0.f) maxX = 0.f;
+			if (maxX > m_Width) maxX = m_Width;*/
+			maxX = std::clamp(maxX, 0.f, static_cast<float>(m_Width));
+			float minX{ std::min(meshes_world[mesh].vertices_out[index1].position.x,meshes_world[mesh].vertices_out[index2].position.x) };
+			minX = { std::min(minX,meshes_world[mesh].vertices_out[index3].position.x) };
+			/*if (minX < 0.f) minX = -0.1f;
+			if (minX > m_Width) minX = m_Width;*/
+			minX = std::clamp(minX, 0.f, static_cast<float>(m_Width));
+
+
+			float maxY{ std::max(meshes_world[mesh].vertices_out[index1].position.y,meshes_world[mesh].vertices_out[index2].position.y) };
+			maxY = { std::max(maxY,meshes_world[mesh].vertices_out[index3].position.y) };
+			/*if (maxY < 0.f) maxY = 0.f;
+			if (maxY > m_Height) maxY = m_Height;*/
+			maxY = std::clamp(maxY, 0.f, static_cast<float>(m_Height));
+			float minY{ std::min(meshes_world[mesh].vertices_out[index1].position.y,meshes_world[mesh].vertices_out[index2].position.y) };
+			minY = { std::min(minY,meshes_world[mesh].vertices_out[index3].position.y) };
+			/*if (minY < 0.f) minY = 0.f;
+			if (minY > m_Height) minY = m_Height;*/
+			minY = std::clamp(minY, 0.f, static_cast<float>(m_Height));
+
+			/*float maxZ{ std::max(meshes_screen[mesh].vertices_out[index1].position.w,meshes_screen[mesh].vertices_out[index2].position.w) };
+			maxZ = { std::max(maxZ,meshes_screen[mesh].vertices_out[index3].position.w) };
+			if (maxZ <= 0)
+			{
+				continue;
+			}*/
+
+
+
+			for (int px{ static_cast<int>(minX) }; px < maxX; ++px)
+			{
+				for (int py{ static_cast<int>(minY) }; py < maxY; ++py)
+				{
+					Vector2 P{ px + 0.5f,py + 0.5f };
+
+					Vector2 e0{ meshes_world[mesh].vertices_out[index2].position.x - meshes_world[mesh].vertices_out[index1].position.x,meshes_world[mesh].vertices_out[index2].position.y - meshes_world[mesh].vertices_out[index1].position.y };
+					Vector2 p0{ P.x - meshes_world[mesh].vertices_out[index1].position.x,P.y - meshes_world[mesh].vertices_out[index1].position.y };
+					if (Vector2::Cross(p0, e0) > 0) continue;
+
+					Vector2 e1{ meshes_world[mesh].vertices_out[index3].position.x - meshes_world[mesh].vertices_out[index2].position.x,meshes_world[mesh].vertices_out[index3].position.y - meshes_world[mesh].vertices_out[index2].position.y };
+					Vector2 p1{ P.x - meshes_world[mesh].vertices_out[index2].position.x,P.y - meshes_world[mesh].vertices_out[index2].position.y };
+					if (Vector2::Cross(p1, e1) > 0) continue;
+
+					Vector2 e2{ meshes_world[mesh].vertices_out[index1].position.x - meshes_world[mesh].vertices_out[index3].position.x, meshes_world[mesh].vertices_out[index1].position.y - meshes_world[mesh].vertices_out[index3].position.y };
+					Vector2 p2{ P.x - meshes_world[mesh].vertices_out[index3].position.x,P.y - meshes_world[mesh].vertices_out[index3].position.y };
+					if (Vector2::Cross(p2, e2) > 0) continue;
+
+
+					Vector2 v0{ meshes_world[mesh].vertices_out[index1].position.x,  meshes_world[mesh].vertices_out[index1].position.y };
+					Vector2 v1{ meshes_world[mesh].vertices_out[index2].position.x,  meshes_world[mesh].vertices_out[index2].position.y };
+					Vector2 v2{ meshes_world[mesh].vertices_out[index3].position.x,  meshes_world[mesh].vertices_out[index3].position.y };
+
+
+					float totalArea{ Vector2::Cross(v1 - v0,v2 - v0) };
+
+					float weight0{ abs(Vector2::Cross(P - v1 ,v2 - v1)) / totalArea };
+					float weight1{ abs(Vector2::Cross(P - v2 ,v0 - v2)) / totalArea };
+					float weight2{ abs(Vector2::Cross(P - v0 ,v1 - v0)) / totalArea };
+
+					float totalWeight{weight0+ weight1+weight2};
+
+					float WInterpolated{ 1 / ((1 / meshes_world[mesh].vertices_out[index1].position.w) * weight0 + (1 / meshes_world[mesh].vertices_out[index2].position.w) * weight1 + (1 / meshes_world[mesh].vertices_out[index3].position.w) * weight2) };
+
+					const float ZInterpolated{1.f / 
+						(
+						  (1 / meshes_world[mesh].vertices_out[index1].position.z * weight0 )
+						+ (1 / meshes_world[mesh].vertices_out[index2].position.z * weight1 )
+						+ (1 / meshes_world[mesh].vertices_out[index3].position.z * weight2 )
+						) };
+
+					if ((ZInterpolated < 0 || ZInterpolated > 1))
+					{
+						continue;
+					}
+					if (m_pDepthBufferPixels[px + (py * m_Width)] < ZInterpolated)
+					{
+						/*std::cout << "Wrong depthBuffer" << px + (py * m_Width) << "\n";
+						std::cout <<  ZInterpolated << "\n";
+						std::cout << m_pDepthBufferPixels[px + (py * m_Width)] << "\n";*/
+						continue;
+					}
+
+					m_pDepthBufferPixels[px + (py * m_Width)] = ZInterpolated;
+
+					Vertex_Out interpolatedVertex{};
+
+					interpolatedVertex.position = Vector4(static_cast<float>(px), static_cast<float>(py), ZInterpolated, WInterpolated);
+					interpolatedVertex.uv = (meshes_world[mesh].vertices[index1].uv / meshes_world[mesh].vertices_out[index1].position.w *
+						weight0 + meshes_world[mesh].vertices[index2].uv / meshes_world[mesh].vertices_out[index2].position.w *
+						weight1 + meshes_world[mesh].vertices[index3].uv / meshes_world[mesh].vertices_out[index3].position.w * weight2) * WInterpolated;
+					interpolatedVertex.color = (meshes_world[mesh].vertices_out[index1].color * weight0
+						+ meshes_world[mesh].vertices_out[index2].color * weight1
+						+ meshes_world[mesh].vertices_out[index3].color * weight2) * WInterpolated;	
+
+					interpolatedVertex.normal = (meshes_world[mesh].vertices_out[index1].normal * weight0 + meshes_world[mesh].vertices_out[index2].normal * weight1 + meshes_world[mesh].vertices_out[index3].normal * weight2).Normalized();
+					interpolatedVertex.tangent = (meshes_world[mesh].vertices_out[index1].tangent * weight0 + meshes_world[mesh].vertices_out[index2].tangent * weight1 + meshes_world[mesh].vertices_out[index3].tangent * weight2).Normalized();
+
+					interpolatedVertex.viewDirection = (meshes_world[mesh].vertices_out[index1].viewDirection * weight0 + meshes_world[mesh].vertices_out[index2].viewDirection * weight1 + meshes_world[mesh].vertices_out[index3].viewDirection * weight2).Normalized();
+
+					ColorRGB finalColor{ };
+
+					float depthValue = m_pDepthBufferPixels[px + (py * m_Width)];
+
+					PixelShading(interpolatedVertex, finalColor, depthValue, m_pTex[mesh]);
+					//else if (m_RenderMode == RenderMode::FinalColor)
+					//{
+					//	//else finalColor = { meshes_world[mesh].vertices[index1].color * weight0 + meshes_world[mesh].vertices[index2].color * weight1 + meshes_world[mesh].vertices[index3].color * weight2 };
+
+					//	Vector2 uv{ (meshes_world[mesh].vertices[index1].uv / meshes_world[mesh].vertices_out[index1].position.w *
+					//		weight0 + meshes_world[mesh].vertices[index2].uv / meshes_world[mesh].vertices_out[index2].position.w *
+					//		weight1 + meshes_world[mesh].vertices[index3].uv / meshes_world[mesh].vertices_out[index3].position.w * weight2) * WInterpolated };
+					//	finalColor = m_pTex[mesh]->Sample(uv);
+					//}
+					//else if (m_RenderMode == RenderMode::Depth)
+					//{
+					//	float depthValue = m_pDepthBufferPixels[px + (py * m_Width)];
+					//	depthValue = Remap(depthValue, 0.955f, 1.f);
+					//	finalColor = ColorRGB(depthValue, depthValue, depthValue);
+					//}
+
+
+					//float depth{ (meshes_world[mesh].vertices[index1].position.z * weight0 + meshes_world[mesh].vertices[index2].position.z * weight1 + meshes_world[mesh].vertices[index3].position.z * weight2)* ZInterpolated };
+					/*float depth{ ZInterpolated };
+					if (depth > depthBuffer[px + (py * m_Width)]) continue;
+
+					depthBuffer[px + (py * m_Width)] = depth;*/
+
+					//Update Color in Buffer
+					finalColor.MaxToOne();
+
+					m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
+						static_cast<uint8_t>(finalColor.r * 255),
+						static_cast<uint8_t>(finalColor.g * 255),
+						static_cast<uint8_t>(finalColor.b * 255));
+				}
+			}
+		}
+	}
+
+	
+}
+
+void dae::Renderer::ChangeRenderMode()
+{
+	const uint8_t* pKeyboardState = SDL_GetKeyboardState(nullptr);
+
+	if (wasF4Pressed && pKeyboardState[SDL_SCANCODE_F4] == false)
+	{
+		if (m_RenderMode == RenderMode::observedArea)
+		{
+			m_RenderMode = RenderMode::FinalColor;
+			std::cout << "Render mode set to FinalColor\n";
+		}
+		else
+			m_RenderMode = static_cast<RenderMode>(static_cast<int>(m_RenderMode) + 1);
+
+		if (m_RenderMode == RenderMode::Depth) 	std::cout << "Render mode set to Depth\n";
+		if (m_RenderMode == RenderMode::BRDF) 	std::cout << "Render mode set to BRDF\n";
+		if (m_RenderMode == RenderMode::observedArea) 	std::cout << "Render mode set to ObservedArea\n";
+		if (m_RenderMode == RenderMode::Phong) 	std::cout << "Render mode set to Phong\n";
+
+	}
+	if (pKeyboardState[SDL_SCANCODE_F4])
+	{
+		wasF4Pressed = true;
+	}
+	if (!pKeyboardState[SDL_SCANCODE_F4])
+	{
+		wasF4Pressed = false;
+	}
+
+}
+
+float dae::Renderer::Remap(float value, float inMin, float inMax) {
+	
+	float outMin = 0.f;
+	float outMax = 1.f;
+	if (value < inMin)
+	{
+		return outMin;
+	}
+	// Ensure the input range is valid to avoid division by zero
+	if (inMin == inMax) {
+		std::cerr << "Error: Input range cannot have the same minimum and maximum values.\n";
+		return outMin; // Return the start of the output range by default
+	}
+
+	// Perform the remap calculation
+	return outMin + ((value - inMin) * (outMax - outMin)) / (inMax - inMin);
+}
+
+bool Renderer::SaveBufferToImage() const
+{
+	return SDL_SaveBMP(m_pBackBuffer, "Rasterizer_ColorBuffer.bmp");
+}
+
 
 //void dae::Renderer::Renderer_W1_Part1()
 //{
@@ -632,226 +1055,3 @@ void dae::Renderer::VertexTransformationFunction(const std::vector<Vertex>& vert
 //		}
 //	}
 //}
-
-void dae::Renderer::Renderer_W3()
-{
-	std::vector<Mesh> meshes_world
-	{
-		Mesh{
-			{
-				Vertex{{ -3,3,-2 },{1.f,1.f,1.f},{0,0}},
-				Vertex{{ 0,3,-2},{1.f,1.f,1.f},{0.5f,0}},
-				Vertex{{ 3,3,-2},{1.f,1.f,1.f},{1,0}},
-				Vertex{{ -3,0,-2},{1.f,1.f,1.f},{0,0.5}},
-				Vertex{{0,0,-2 },{1.f,1.f,1.f},{0.5f,0.5f}},
-				Vertex{{ 3,0,-2},{1.f,1.f,1.f},{1,0.5f}},
-				Vertex{{-3,-3,-2 },{1.f,1.f,1.f},{0,1}},
-				Vertex{{0,-3,-2 },{1.f,1.f,1.f},{0.5f,1}},
-				Vertex{{3,-3,-2 },{1.f,1.f,1.f},{1,1}}
-			},
-			{
-				3, 0, 4, 1, 5, 2,
-				2, 6,
-				6, 3, 7, 4, 8, 5
-			},
-		PrimitiveTopology::TriangleStrip
-		}
-	};
-
-	//std::vector<Mesh> meshes_screen{ meshes_world };
-	for (int i{}; i < meshes_world.size(); ++i)
-	{
-		VertexTransformationFunction(meshes_world[i].vertices, meshes_world[i].vertices_out , meshes_world[i].GetWorldMat());
-	}
-
-	/*std::vector<float> depthBuffer{};
-	depthBuffer.reserve(m_Width * m_Height);*/
-
-	SDL_FillRect(m_pBackBuffer, 0, SDL_MapRGB(m_pBackBuffer->format, static_cast <uint8_t>(100), static_cast <uint8_t>(100), static_cast<uint8_t>(100)));
-
-	for (int px{}; px < m_Width; ++px)
-	{
-		for (int py{}; py < m_Height; ++py)
-		{
-			m_pDepthBufferPixels[px + (py * m_Width)] = FLT_MAX;
-		}
-	}
-	for (int mesh{}; mesh < meshes_world.size(); ++mesh)
-	{
-		int step{ 3 };
-		for (int idx{}; idx < meshes_world[mesh].indices.size(); idx += step)
-		{
-			
-
-
-			uint32_t index1 = meshes_world[mesh].indices[idx];
-			uint32_t index2 = meshes_world[mesh].indices[idx + 1];
-			uint32_t index3 = meshes_world[mesh].indices[idx + 2];
-
-			if (meshes_world[mesh].primitiveTopology == PrimitiveTopology::TriangleStrip)
-			{
-				step = 1;
-				if (idx == (meshes_world[mesh].indices.size() - 3)) step = 3;
-				if (idx % 2)
-				{
-					std::swap(index2, index3);
-				}
-			}
-
-			float maxX{ std::max(meshes_world[mesh].vertices_out[index1].position.x,meshes_world[mesh].vertices_out[index2].position.x) };
-			maxX = { std::max(maxX,meshes_world[mesh].vertices_out[index3].position.x) };
-			/*if (maxX < 0.f) maxX = 0.f;
-			if (maxX > m_Width) maxX = m_Width;*/
-			maxX = std::clamp(maxX, 0.f, static_cast<float>(m_Width));
-			float minX{ std::min(meshes_world[mesh].vertices_out[index1].position.x,meshes_world[mesh].vertices_out[index2].position.x) };
-			minX = { std::min(minX,meshes_world[mesh].vertices_out[index3].position.x) };
-			/*if (minX < 0.f) minX = -0.1f;
-			if (minX > m_Width) minX = m_Width;*/
-			minX = std::clamp(minX, 0.f, static_cast<float>(m_Width));
-
-
-			float maxY{ std::max(meshes_world[mesh].vertices_out[index1].position.y,meshes_world[mesh].vertices_out[index2].position.y) };
-			maxY = { std::max(maxY,meshes_world[mesh].vertices_out[index3].position.y) };
-			/*if (maxY < 0.f) maxY = 0.f;
-			if (maxY > m_Height) maxY = m_Height;*/
-			maxY = std::clamp(maxY, 0.f, static_cast<float>(m_Height));
-			float minY{ std::min(meshes_world[mesh].vertices_out[index1].position.y,meshes_world[mesh].vertices_out[index2].position.y) };
-			minY = { std::min(minY,meshes_world[mesh].vertices_out[index3].position.y) };
-			/*if (minY < 0.f) minY = 0.f;
-			if (minY > m_Height) minY = m_Height;*/
-			minY = std::clamp(minY, 0.f, static_cast<float>(m_Height));
-
-			/*float maxZ{ std::max(meshes_screen[mesh].vertices_out[index1].position.w,meshes_screen[mesh].vertices_out[index2].position.w) };
-			maxZ = { std::max(maxZ,meshes_screen[mesh].vertices_out[index3].position.w) };
-			if (maxZ <= 0)
-			{
-				continue;
-			}*/
-
-
-
-			for (int px{ static_cast<int>(minX) }; px < maxX; ++px)
-			{
-				for (int py{ static_cast<int>(minY) }; py < maxY; ++py)
-				{
-					Vector2 P{ px + 0.5f,py + 0.5f };
-
-					Vector2 e0{ meshes_world[mesh].vertices_out[index2].position.x - meshes_world[mesh].vertices_out[index1].position.x,meshes_world[mesh].vertices_out[index2].position.y - meshes_world[mesh].vertices_out[index1].position.y };
-					Vector2 p0{ P.x - meshes_world[mesh].vertices_out[index1].position.x,P.y - meshes_world[mesh].vertices_out[index1].position.y };
-					Vector2 e1{ meshes_world[mesh].vertices_out[index3].position.x - meshes_world[mesh].vertices_out[index2].position.x,meshes_world[mesh].vertices_out[index3].position.y - meshes_world[mesh].vertices_out[index2].position.y };
-					Vector2 p1{ P.x - meshes_world[mesh].vertices_out[index2].position.x,P.y - meshes_world[mesh].vertices_out[index2].position.y };
-					Vector2 e2{ meshes_world[mesh].vertices_out[index1].position.x - meshes_world[mesh].vertices_out[index3].position.x, meshes_world[mesh].vertices_out[index1].position.y - meshes_world[mesh].vertices_out[index3].position.y };
-					Vector2 p2{ P.x - meshes_world[mesh].vertices_out[index3].position.x,P.y - meshes_world[mesh].vertices_out[index3].position.y };
-
-					Vector2 v0{ meshes_world[mesh].vertices_out[index1].position.x,  meshes_world[mesh].vertices_out[index1].position.y };
-					Vector2 v1{ meshes_world[mesh].vertices_out[index2].position.x,  meshes_world[mesh].vertices_out[index2].position.y };
-					Vector2 v2{ meshes_world[mesh].vertices_out[index3].position.x,  meshes_world[mesh].vertices_out[index3].position.y };
-
-					float totalArea{ Vector2::Cross(v1 - v0,v2 - v0) };
-
-					float weight0{ abs(Vector2::Cross(P - v1 ,v2 - v1)) / totalArea };
-					float weight1{ abs(Vector2::Cross(P - v2 ,v0 - v2)) / totalArea };
-					float weight2{ abs(Vector2::Cross(P - v0 ,v1 - v0)) / totalArea };
-
-					float totalWeight{weight0+ weight1+weight2};
-
-					float WInterpolated{ 1 / ((1 / meshes_world[mesh].vertices_out[index1].position.w) * weight0 + (1 / meshes_world[mesh].vertices_out[index2].position.w) * weight1 + (1 / meshes_world[mesh].vertices_out[index3].position.w) * weight2) };
-
-					const float ZInterpolated{1.f / 
-						(
-						  (1 / meshes_world[mesh].vertices_out[index1].position.z * weight0 )
-						+ (1 / meshes_world[mesh].vertices_out[index2].position.z * weight1 )
-						+ (1 / meshes_world[mesh].vertices_out[index3].position.z * weight2 )
-						) };
-
-					if ((ZInterpolated < 0 || ZInterpolated > 1))
-					{
-						continue;
-					}
-					if (m_pDepthBufferPixels[px + (py * m_Width)] < ZInterpolated)
-					{
-						std::cout << "Wrong depthBuffer" << px + (py * m_Width) << "\n";
-						continue;
-					}
-
-					m_pDepthBufferPixels[px + (py * m_Width)] = ZInterpolated;
-
-					ColorRGB finalColor{ };
-					if (Vector2::Cross(p0, e0) > 0) continue;
-					else if (Vector2::Cross(p1, e1) > 0) continue;
-					else if (Vector2::Cross(p2, e2) > 0) continue;
-
-					//else finalColor = { meshes_world[mesh].vertices[index1].color * weight0 + meshes_world[mesh].vertices[index2].color * weight1 + meshes_world[mesh].vertices[index3].color * weight2 };
-					if (UsingFinalColor == true)
-					{
-						Vector2 uv{ (meshes_world[mesh].vertices[index1].uv / meshes_world[mesh].vertices_out[index1].position.w *
-							weight0 + meshes_world[mesh].vertices[index2].uv / meshes_world[mesh].vertices_out[index2].position.w *
-							weight1 + meshes_world[mesh].vertices[index3].uv / meshes_world[mesh].vertices_out[index3].position.w * weight2) * WInterpolated };
-						finalColor = m_pTex->Sample(uv);
-					}
-					else
-					{
-						float depthValue = m_pDepthBufferPixels[px + (py * m_Width)];
-						depthValue = Remap(depthValue, 0.985f, 1.f);
-						finalColor = ColorRGB(depthValue, depthValue, depthValue);
-					}
-
-
-					//float depth{ (meshes_world[mesh].vertices[index1].position.z * weight0 + meshes_world[mesh].vertices[index2].position.z * weight1 + meshes_world[mesh].vertices[index3].position.z * weight2)* ZInterpolated };
-					/*float depth{ ZInterpolated };
-					if (depth > depthBuffer[px + (py * m_Width)]) continue;
-
-					depthBuffer[px + (py * m_Width)] = depth;*/
-
-					//Update Color in Buffer
-					finalColor.MaxToOne();
-
-					m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
-						static_cast<uint8_t>(finalColor.r * 255),
-						static_cast<uint8_t>(finalColor.g * 255),
-						static_cast<uint8_t>(finalColor.b * 255));
-				}
-			}
-		}
-	}
-
-	
-}
-
-void dae::Renderer::ChangeRenderMode()
-{
-	const uint8_t* pKeyboardState = SDL_GetKeyboardState(nullptr);
-
-	if (wasF4Pressed && pKeyboardState[SDL_SCANCODE_F4] == false)
-	{
-		UsingFinalColor = !UsingFinalColor;
-	}
-	if (pKeyboardState[SDL_SCANCODE_F4])
-	{
-		wasF4Pressed = true;
-	}
-	if (!pKeyboardState[SDL_SCANCODE_F4])
-	{
-		wasF4Pressed = false;
-	}
-
-}
-
-float dae::Renderer::Remap(float value, float outMin, float outMax)
-{
-	// Ensure the input is within the expected range
-	if (value < 0.0f || value > 1.0f) {
-		std::cerr << "Error: Input value must be between 0 and 1.\n";
-		return outMin; // Return the start of the output range by default
-	}
-
-	// Perform the remap calculation
-	return outMin + value * (outMax - outMin);
-}
-
-bool Renderer::SaveBufferToImage() const
-{
-	return SDL_SaveBMP(m_pBackBuffer, "Rasterizer_ColorBuffer.bmp");
-}
-
-

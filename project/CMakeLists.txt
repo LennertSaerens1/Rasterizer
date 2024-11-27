@@ -8,7 +8,7 @@ set(SOURCES
 	"src/Vector2.cpp"
     "src/Vector3.cpp"
     "src/Vector4.cpp"
-)
+ "src/BRDFs.h")
 
 # Create the executable
 add_executable(${PROJECT_NAME} ${SOURCES})
