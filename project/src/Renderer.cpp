@@ -37,7 +37,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 
 
 	//Initialize Camera
-	m_Camera.Initialize(static_cast<float>(m_Width) / m_Height,60.f, { 0.f,0.f,-40.f });
+	m_Camera.Initialize(static_cast<float>(m_Width) / m_Height,60.f, { 0.f,0.f,0.f });
 
 	//meshes_world = //W3
 	//{
@@ -88,6 +88,8 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	meshes_world.push_back(Mesh{});
 	Utils::ParseOBJ("Resources/vehicle.obj", meshes_world[0].vertices, meshes_world[0].indices);
 	meshes_world[0].primitiveTopology = PrimitiveTopology::TriangleList;
+	meshes_world[0].Translate(Vector3(0.f, 0.f, 50.f));
+
 
 	for (int idx{}; idx < meshes_world[0].vertices.size(); ++idx)
 	{
@@ -300,6 +302,11 @@ void dae::Renderer::Renderer_W3()
 			uint32_t index1 = meshes_world[mesh].indices[idx];
 			uint32_t index2 = meshes_world[mesh].indices[idx + 1];
 			uint32_t index3 = meshes_world[mesh].indices[idx + 2];
+
+			if (meshes_world[mesh].vertices_out[index1].position.x > m_Width && meshes_world[mesh].vertices_out[index2].position.x > m_Width && meshes_world[mesh].vertices_out[index3].position.x > m_Width) continue;
+			if (meshes_world[mesh].vertices_out[index1].position.x < 0 && meshes_world[mesh].vertices_out[index2].position.x < 0 && meshes_world[mesh].vertices_out[index3].position.x < 0) continue;
+			if (meshes_world[mesh].vertices_out[index1].position.y > m_Height && meshes_world[mesh].vertices_out[index2].position.y > m_Height && meshes_world[mesh].vertices_out[index3].position.y > m_Height) continue;
+			if (meshes_world[mesh].vertices_out[index1].position.y < 0 && meshes_world[mesh].vertices_out[index2].position.y < 0 && meshes_world[mesh].vertices_out[index3].position.y < 0) continue;
 
 			
 			/*meshes_world[mesh].vertices_out[index1].viewDirection = ((meshes_world[mesh].vertices[index1].position*) - m_Camera.origin);
